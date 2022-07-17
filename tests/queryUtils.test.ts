@@ -590,7 +590,7 @@ describe("suite", async function() {
       expect(transaction.autoRollback).to.be.false;
       expect(transaction.suppressErrorLogging).to.be.false;
       expect(transaction.enableTracing).to.be.false;
-      expect(transaction.debug.queryExecutionCount).to.equal(4);
+      expect(transaction.debug.queryExecutionCount).to.equal(2);
 
 
       await expectErrorType("NO_TRANSACTION_IN_PROGRESS", async function() {

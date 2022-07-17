@@ -575,8 +575,6 @@ describe("suite", async function() {
 
       await transaction.commit();
 
-
-
       expect(transaction.debug.queryLog.length).to.equal(4);
 
       expect(transaction.debug.queryLog[3]).to.equal("commit;");
@@ -592,7 +590,6 @@ describe("suite", async function() {
       expect(transaction.enableTracing).to.be.false;
       expect(transaction.debug.queryExecutionCount).to.equal(2);
 
-
       await expectErrorType("NO_TRANSACTION_IN_PROGRESS", async function() {
         await transaction.executeQuery(query`select 2`);
       });
@@ -604,7 +601,6 @@ describe("suite", async function() {
       await expectErrorType("NO_TRANSACTION_IN_PROGRESS", async function() {
         await transaction.rollback();
       });
-
     });
 
     it("should allow queries then rollback", async function() {
@@ -687,6 +683,290 @@ describe("suite", async function() {
         "select current_timestamp;",
         "rollback;"
       ]);
+    });
+
+    it("should handle errors properly when exceptions thrown when creating the connection", async function() {
+      const dbStub = {
+        _pool: {
+          connect: async function() {
+            throw new Error("unit test error intentionally thrown");
+          }
+        }
+      };
+
+      const transactionHelper = beginTransaction(dbStub);
+      expect(transactionHelper).to.be.a("function");
+
+      let expectedError: any = undefined;
+      try {
+        const transaction = await transactionHelper({
+          autoRollback: false,
+          enableQueryLogging: true,
+          enableConsoleTracing: false,
+          preamble: [query`SET LOCAL bar = bar`]
+        });
+      } catch (err) {
+        expectedError = err;
+      }
+      expect(expectedError.message).to.equal(
+        "unit test error intentionally thrown"
+      );
+    });
+
+    it("should handle errors properly when exceptions thrown during preamble", async function() {
+      const dbStub = {
+        _pool: {
+          connect: async function() {
+            return {
+              query: async function(q: any) {
+                if (q.text.includes(`THROW_ERR`)) {
+                  throw new Error("unit test error intentionally thrown");
+                }
+                return [];
+              },
+              release: async function() {}
+            };
+          }
+        }
+      };
+
+      const transactionHelper = beginTransaction(dbStub);
+      expect(transactionHelper).to.be.a("function");
+
+      let expectedError: any = undefined;
+      try {
+        const transaction = await transactionHelper({
+          autoRollback: false,
+          enableQueryLogging: true,
+          enableConsoleTracing: true,
+          preamble: [query`SET LOCAL bar = bar /* THROW_ERR */`]
+        });
+      } catch (err) {
+        expectedError = err;
+      }
+      expect(expectedError.message).to.equal(
+        "unit test error intentionally thrown"
+      );
+    });
+
+    it("should not enable query logging by default", async function() {
+      const transactionHelper = beginTransaction(dbStub);
+      expect(transactionHelper).to.be.a("function");
+      const transaction = await transactionHelper({});
+
+      await transaction.executeQuery(
+        query`select current_timestamp, ${param("foo", "bar")};`
+      );
+      await transaction.rollback();
+
+      expect(transaction.debug.enableQueryLogging).to.be.false;
+      expect(transaction.debug.queryLog).to.be.empty;
+    });
+
+    it("should allow you to autoRollback instead of commit", async function() {
+      const transactionHelper = beginTransaction(dbStub);
+      expect(transactionHelper).to.be.a("function");
+      const transaction = await transactionHelper({
+        autoRollback: true,
+        enableQueryLogging: true
+      });
+
+      await transaction.executeQuery(
+        query`select current_timestamp, ${param("foo", "bar")};`
+      );
+      await transaction.commit();
+
+      expect(transaction.debug.queryLog).to.deep.equal([
+        "begin;",
+        "select current_timestamp, 'bar';",
+        "rollback;"
+      ]);
+    });
+
+    it("should allow you to disable rollback and commit for use in unit testing", async function() {
+      const transactionHelper = beginTransaction(dbStub);
+      expect(transactionHelper).to.be.a("function");
+      const transaction = await transactionHelper({ enableQueryLogging: true });
+
+      transaction.debug.disableRollbackAndCommit = true;
+
+      await transaction.executeQuery(
+        query`select current_timestamp, ${param("foo", "bar")};`
+      );
+      await transaction.rollback();
+
+      expect(transaction.debug.queryLog).to.deep.equal([
+        "begin;",
+        "select current_timestamp, 'bar';"
+      ]);
+
+      await transaction.commit();
+      expect(transaction.debug.queryLog).to.deep.equal([
+        "begin;",
+        "select current_timestamp, 'bar';"
+      ]);
+
+      transaction.debug.disableRollbackAndCommit = false;
+
+      await transaction.commit();
+      expect(transaction.debug.queryLog).to.deep.equal([
+        "begin;",
+        "select current_timestamp, 'bar';",
+        "commit;"
+      ]);
+    });
+
+    it("should handle a query error", async function() {
+      const dbStub = {
+        _pool: {
+          connect: async function() {
+            return {
+              query: async function(q: any) {
+                if (q.text.includes(`THROW_ERR`)) {
+                  throw new Error("unit test error intentionally thrown");
+                }
+                return [];
+              },
+              release: async function() {}
+            };
+          }
+        }
+      };
+
+      const transactionHelper = beginTransaction(dbStub);
+      expect(transactionHelper).to.be.a("function");
+      const transaction = await transactionHelper({});
+
+      expect(transaction.debug.enableQueryLogging).to.be.false;
+      transaction.debug.enableQueryLogging = true;
+      expect(transaction.debug.enableQueryLogging).to.be.true;
+
+      let expectedError1: any = undefined;
+      try {
+        await transaction.executeQuery(query`select 1 /* THROW_ERR */;`);
+      } catch (err) {
+        expectedError1 = err;
+      }
+      expect(expectedError1.message).to.equal(
+        "unit test error intentionally thrown"
+      );
+
+      expect(transaction.autoRollback).to.be.false;
+
+      expect(transaction.debug.queryLog).to.deep.equal([
+        // no begin, because we didn't enable query logging until after the transaction had started.
+        "select 1 /* THROW_ERR */;",
+        "rollback;"
+      ]);
+
+      transaction.debug.dumpQueries();
+    });
+
+    it("should handle a commit error", async function() {
+      let wasReleaseCalled = false;
+      const dbStub = {
+        _pool: {
+          connect: async function() {
+            return {
+              query: async function(q: any) {
+                if (q.text.includes(`commit;`)) {
+                  throw new Error("unit test error intentionally thrown");
+                }
+                return [];
+              },
+              release: async function() {
+                wasReleaseCalled = true;
+              }
+            };
+          }
+        }
+      };
+
+      const transactionHelper = beginTransaction(dbStub);
+      expect(transactionHelper).to.be.a("function");
+      const transaction = await transactionHelper({});
+
+      expect(transaction.debug.enableQueryLogging).to.be.false;
+      transaction.debug.enableQueryLogging = true;
+      expect(transaction.debug.enableQueryLogging).to.be.true;
+
+      await transaction.executeQuery(query`select 1;`);
+
+      let expectedError1: any = undefined;
+      try {
+        await transaction.commit();
+      } catch (err) {
+        expectedError1 = err;
+      }
+      expect(expectedError1.message).to.equal(
+        "unit test error intentionally thrown"
+      );
+
+      expect(transaction.autoRollback).to.be.false;
+
+      expect(transaction.debug.queryLog).to.deep.equal([
+        // no begin, because we didn't enable query logging until after the transaction had started.
+        "select 1;",
+        "rollback;"
+      ]);
+
+      expect(wasReleaseCalled).to.be.true;
+      expect(transaction.debug.isTransactionInProgress).to.be.false;
+      expect(transaction.debug.transactionState).to.equal("ROLLED_BACK");
+      expect(transaction.debug.wasRollbackCalled).to.be.false;
+      expect(transaction.debug.wasCommitCalled).to.be.true;
+    });
+
+    it("should handle a rollback error", async function() {
+      let wasReleaseCalled = false;
+      const dbStub = {
+        _pool: {
+          connect: async function() {
+            return {
+              query: async function(q: any) {
+                if (q.text.includes(`rollback;`)) {
+                  throw new Error("unit test error intentionally thrown");
+                }
+                return [];
+              },
+              release: async function() {
+                wasReleaseCalled = true;
+              }
+            };
+          }
+        }
+      };
+
+      const transactionHelper = beginTransaction(dbStub);
+      expect(transactionHelper).to.be.a("function");
+      const transaction = await transactionHelper({
+        enableQueryLogging: true,
+        enableConsoleTracing: true
+      });
+
+      expect(transaction.debug.enableQueryLogging).to.be.true;
+
+      await transaction.executeQuery(query`select 1;`);
+
+      let expectedError1: any = undefined;
+      try {
+        await transaction.rollback();
+      } catch (err) {
+        expectedError1 = err;
+      }
+      expect(expectedError1.message).to.equal(
+        "unit test error intentionally thrown"
+      );
+
+      expect(transaction.autoRollback).to.be.false;
+
+      expect(transaction.debug.queryLog).to.deep.equal(["begin;", "select 1;"]);
+
+      expect(transaction.debug.isTransactionInProgress).to.be.false;
+      expect(transaction.debug.transactionState).to.equal("FAILED_TO_ROLLBACK");
+      expect(transaction.debug.wasRollbackCalled).to.be.true;
+      expect(transaction.debug.wasCommitCalled).to.be.false;
+      expect(wasReleaseCalled).to.be.true;
     });
   });
 });

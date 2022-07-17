@@ -10,8 +10,8 @@
   "scripts": {
     "tsc": "tsc -p tsconfig.json && tsc -p tsconfig-cjs.json",
     "prepublishOnly": "npm run tsc",
-    "test": "NODE_ENV=test nyc --cache mocha ./tests/* --exit --timeout=10000 && nyc check-coverage",
-    "test-watch": "NODE_ENV=test mocha ./tests/* --exit --timeout=10000 --watch",
+    "test": "NODE_ENV=test nyc --cache mocha ./tests/* --exit && nyc check-coverage",
+    "test-watch": "NODE_ENV=test mocha ./tests/* --exit --watch",
     "open-coverage": "open ./coverage/index.html"
   },
   "devDependencies": {
@@ -36,7 +36,9 @@
     "recursive": true,
     "extensions": [
       "ts"
-    ]
+    ],
+    "parallel": false,
+    "timeout": 1000
   },
   "nyc": {
     "exclude": [

@@ -429,7 +429,8 @@ type TransactionStateTypes =
   | "NOT_STARTED"
   | "STARTED"
   | "ROLLED_BACK"
-  | "COMMITTED";
+  | "COMMITTED"
+  | "FAILED_TO_ROLLBACK";
 
 interface QueryUtilTransaction {
   __type: "__TRANSACTION__";
@@ -499,63 +500,65 @@ export function beginTransaction(
       if (enableConsoleTracing) {
         console.log(TRACE_PREFIX, "client connected");
       }
-
-      try {
-        const q = { text: `begin;` };
-        await client.query(q);
-        if (enableQueryLogging) {
-          queryLog.push(q.text);
-        }
-
-        if (enableConsoleTracing) {
-          console.log(TRACE_PREFIX, "transaction begun");
-        }
-        if (preamble.length) {
-          if (enableConsoleTracing) {
-            console.log(TRACE_PREFIX, "running preamble");
-          }
-          for (const statement of preamble) {
-            if (isQuery(statement)) {
-              await client.query({
-                text: statement.sql,
-                values: statement.params.map(p => p.value)
-              });
-              /* istanbul ignore else */
-              if (enableQueryLogging) {
-                queryLog.push(statement.debug());
-              }
-            } else {
-              await client.query({ text: statement });
-              /* istanbul ignore else */
-              if (enableQueryLogging) {
-                queryLog.push(statement);
-              }
-            }
-          }
-        }
-      } catch (err) {
-        logDbException(err, suppressErrorLogging);
-        const q = { text: `rollback;` };
-        await client.query(q);
-        if (enableQueryLogging) {
-          queryLog.push(q.text);
-        }
-        if (enableConsoleTracing) {
-          console.log(TRACE_PREFIX, "rolling back because of exception");
-        }
-        isTransactionInProgress = false;
-        throw err;
-      } finally {
-        await client.release();
-        if (enableConsoleTracing) {
-          console.log(TRACE_PREFIX, "client released");
-        }
-      }
     } catch (err) {
       logDbException(err, suppressErrorLogging);
       isTransactionInProgress = false;
       throw err;
     } finally {
+    }
+
+    try {
+      const q = { text: `begin;` };
+      await client.query(q);
+      if (enableQueryLogging) {
+        queryLog.push(q.text);
+      }
+
+      if (enableConsoleTracing) {
+        console.log(TRACE_PREFIX, "transaction begun");
+      }
+      if (preamble.length) {
+        if (enableConsoleTracing) {
+          console.log(TRACE_PREFIX, "running preamble");
+        }
+        for (const statement of preamble) {
+          if (isQuery(statement)) {
+            await client.query({
+              text: statement.sql,
+              values: statement.params.map(p => p.value)
+            });
+            /* istanbul ignore else */
+            if (enableQueryLogging) {
+              queryLog.push(statement.debug());
+            }
+          } else {
+            await client.query({ text: statement });
+            /* istanbul ignore else */
+            if (enableQueryLogging) {
+              queryLog.push(statement);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      logDbException(err, suppressErrorLogging);
+      const q = { text: `rollback;` };
+      await client.query(q);
+      /* istanbul ignore else */
+      if (enableQueryLogging) {
+        queryLog.push(q.text);
+      }
+      /* istanbul ignore else */
+      if (enableConsoleTracing) {
+        console.log(TRACE_PREFIX, "rolling back because of exception");
+      }
+      isTransactionInProgress = false;
+      throw err;
+    } finally {
+      await client.release();
+      if (enableConsoleTracing) {
+        console.log(TRACE_PREFIX, "client released");
+      }
     }
 
     function trace(...output: any[]) {
@@ -593,6 +596,7 @@ export function beginTransaction(
           logDbException(err, suppressErrorLogging, query);
           const q = { text: `rollback;` };
           await client.query(q);
+          /* istanbul ignore else */
           if (enableQueryLogging) {
             queryLog.push(q.text);
           }
@@ -624,6 +628,7 @@ export function beginTransaction(
 
             const q = { text: `rollback;` };
             await client.query(q);
+            /* istanbul ignore else */
             if (enableQueryLogging) {
               queryLog.push(q.text);
             }
@@ -631,6 +636,7 @@ export function beginTransaction(
           } else {
             const q = { text: `commit;` };
             await client.query(q);
+            /* istanbul ignore else */
             if (enableQueryLogging) {
               queryLog.push(q.text);
             }
@@ -640,6 +646,7 @@ export function beginTransaction(
           logDbException(err, suppressErrorLogging);
           const q = { text: `rollback;` };
           await client.query(q);
+          /* istanbul ignore else */
           if (enableQueryLogging) {
             queryLog.push(q.text);
           }
@@ -652,7 +659,7 @@ export function beginTransaction(
           isTransactionInProgress = false;
         }
       },
-      async rollback(ignoreIfTransactionInProgress = false) {
+      async rollback() {
         wasRollbackCalled = true;
         ensureTransactionInProgress(isTransactionInProgress);
         if (disableRollbackAndCommit) {
@@ -665,18 +672,14 @@ export function beginTransaction(
         try {
           const q = { text: `rollback;` };
           await client.query(q);
+          /* istanbul ignore else */
           if (enableQueryLogging) {
             queryLog.push(q.text);
           }
         } catch (err) {
           logDbException(err, suppressErrorLogging);
-          const q = { text: `rollback;` };
-          await client.query(q);
-          if (enableQueryLogging) {
-            queryLog.push(q.text);
-          }
-          transactionState = "ROLLED_BACK";
-          trace("rolling back because of exception");
+          transactionState = "FAILED_TO_ROLLBACK";
+          trace("exception during rollback");
           isTransactionInProgress = false;
           throw err;
         } finally {

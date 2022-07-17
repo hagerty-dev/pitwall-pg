@@ -29,6 +29,7 @@ export default function dedent(
   strings: TemplateStringsArray | string,
   ...values: string[]
 ) {
+  /* istanbul ignore next */
   const raw = typeof strings === "string" ? [strings] : strings.raw;
 
   // first, perform interpolation
@@ -40,6 +41,7 @@ export default function dedent(
       // handle escaped backticks
       .replace(/\\`/g, "`");
 
+    /* istanbul ignore next */
     if (i < values.length) {
       result += values[i];
     }

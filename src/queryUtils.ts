@@ -16,22 +16,22 @@ const PARAM_SYMBOL = "__PARAM__";
 const QUERY_SYMBOL = "__QUERY__";
 const TRANSACTION_SYMBOL = "__TRANSACTION__";
 
-interface dbConnection {
-  _pool: Pool;
+export interface QueryUtilsDbConnection {
+  _pool: any;
 }
 
 interface QueryUtilType {
   __type: "__PARAM__" | "__QUERY__" | "__TRANSACTION__";
 }
 
-interface QueryUtilParam extends QueryUtilType {
+export interface QueryUtilParam extends QueryUtilType {
   __type: "__PARAM__";
   name: string;
   value: any;
   type: string;
 }
 
-interface QueryUtilQuery extends QueryUtilType {
+export interface QueryUtilQuery extends QueryUtilType {
   __type: "__QUERY__";
   namedParametersSQL: string;
   params: QueryUtilParam[];
@@ -40,7 +40,7 @@ interface QueryUtilQuery extends QueryUtilType {
   debug: Function;
 }
 
-class QueryUtilsError extends Error {
+export class QueryUtilsError extends Error {
   private readonly _type: string = "";
   constructor(message: string, type: string) {
     super(message);
@@ -58,7 +58,7 @@ interface errorDefinition {
 
 const ERROR_DEFINITIONS: { [key: string]: errorDefinition } = {
   INTERNAL_ERROR_INVALID_ERROR_TYPE: {
-    message: type =>
+    message: /* istanbul ignore next */ type =>
       `${LIBRARY_NAME} internal error: the error type ${type} has not been defined`
   },
   EMPTY_SQL: {
@@ -84,7 +84,7 @@ const ERROR_DEFINITIONS: { [key: string]: errorDefinition } = {
   },
   UNHANDLED_ARRAY_TYPE: {
     message: (type, { valueType }: { valueType: string }) =>
-      `${LIBRARY_NAME}: query builder unhandled array of types: ${valueType}`
+      `${LIBRARY_NAME}: query builder unhandled array of types: ${valueType}. Maybe you intended to use param() or query\`\`?`
   },
   UNHANDLED_CASE: {
     message: (type, { value }: { value: any }) =>
@@ -95,6 +95,7 @@ const ERROR_DEFINITIONS: { [key: string]: errorDefinition } = {
 function makeError(type: string, ...args: any[]) {
   let definition = ERROR_DEFINITIONS[type];
 
+  /* istanbul ignore next */
   if (!definition) {
     definition = ERROR_DEFINITIONS["INTERNAL_ERROR_INVALID_ERROR_TYPE"];
   }
@@ -188,7 +189,6 @@ export function query(
             if (!value.every(isParam)) {
               throw makeError(`INCONSISTENT_ARRAY_TYPES`);
             }
-            // todo: there may be something we could do here to automatically add an index to the end of the parameter name, when adding many parameters, such as when providing a list to an `in ()` clause
             value.forEach(addParam);
             return (
               accumulatedSQL +
@@ -211,7 +211,8 @@ export function query(
         throw makeError("UNHANDLED_CASE", { value });
       }
 
-      //return "";
+      /* istanbul ignore next */
+      return "";
     }, template[0]) // start the accumulatedSQL with the first part of the template
     .replace(/(\n\t*\n)+/g, "\n"); // replace multiple newlines with a single newline.
 
@@ -239,7 +240,7 @@ export function query(
       },
       this.namedParametersSQL);
     },
-    dump() {
+    dump(): string {
       let output = this.params.reduceRight(function(
         sql: string,
         param: QueryUtilParam,
@@ -259,7 +260,7 @@ export function query(
 
       return dedent(output);
     },
-    debug() {
+    debug(): string {
       return this.dump();
     }
   };
@@ -267,7 +268,7 @@ export function query(
 
 export function param(
   name: string,
-  value: any = undefined,
+  value: any,
   type: string = ""
 ): QueryUtilParam | QueryUtilParam[] {
   if (Array.isArray(value)) {
@@ -281,7 +282,7 @@ export function param(
   return { __type: PARAM_SYMBOL, name: name, type: type, value: value };
 }
 
-export function comment(_string: string) {
+export function comment(_input: TemplateStringsArray, ..._values: any) {
   return "";
 }
 
@@ -332,17 +333,17 @@ export function canonicalize(sqlInput: string) {
 }
 
 export interface QueryExecutorOptions {
-  autoRollback: boolean;
-  suppressErrorLogging: boolean;
-  preamble: string[];
+  autoRollback?: boolean;
+  suppressErrorLogging?: boolean;
+  preamble?: string[] | QueryUtilQuery[];
 }
 
 export type QueryExecutor = (
   query: QueryUtilQuery,
-  Options: QueryExecutorOptions
+  Options?: QueryExecutorOptions
 ) => Promise<QueryResult>;
 
-export function makeExecutor(db: dbConnection): QueryExecutor {
+export function makeExecutor(db: QueryUtilsDbConnection): QueryExecutor {
   return async function(
     query: QueryUtilQuery,
     options: QueryExecutorOptions = {
@@ -365,8 +366,17 @@ export function makeExecutor(db: dbConnection): QueryExecutor {
     try {
       await client.query({ text: `begin;` });
 
-      for (const statement of options.preamble) {
-        await client.query({ text: statement });
+      if (options.preamble?.length) {
+        for (const statement of options.preamble) {
+          if (isQuery(statement)) {
+            await client.query({
+              text: statement.sql,
+              values: statement.params.map(p => p.value)
+            });
+          } else {
+            await client.query({ text: statement });
+          }
+        }
       }
 
       rows = await client.query({
@@ -379,10 +389,7 @@ export function makeExecutor(db: dbConnection): QueryExecutor {
         await client.query({ text: `commit;` });
       }
     } catch (err) {
-      if (!options.suppressErrorLogging) {
-        console.log(query.debug());
-        console.error("\tDB Error: " + (err as Error).toString() + "\n");
-      }
+      logDbException(err, options.suppressErrorLogging, query);
       await client.query({ text: `rollback;` });
       //console.log(err)
       throw err;
@@ -398,10 +405,12 @@ function logDbException(
   suppressErrorLogging: boolean = false,
   query?: QueryUtilQuery
 ) {
-  if (suppressErrorLogging) {
+  if (!suppressErrorLogging) {
+    /* istanbul ignore else */
     if (typeof query !== "undefined") {
       console.log(query.debug());
     }
+    /* istanbul ignore else */
     if (error instanceof Error) {
       console.error("\tDB Error: " + error.toString() + "\n");
     } else if (typeof error === "string" || error instanceof String) {
@@ -437,91 +446,120 @@ interface QueryUtilTransaction {
     readonly wasCommitCalled: boolean;
     readonly wasRollbackCalled: boolean;
     readonly queryExecutionCount: number;
-    isTestMode: boolean;
-    readonly debugQueryCollection: QueryUtilQuery[];
+    enableQueryLogging: boolean;
+    disableRollbackAndCommit: boolean;
+    readonly queryLog: string[];
     dumpQueries: () => void;
   };
 }
 
 interface beginTransactionArgs {
-  autoRollback: boolean;
-  suppressErrorLogging: boolean;
-  preamble: string[];
-  enableTracing: boolean;
+  autoRollback?: boolean;
+  suppressErrorLogging?: boolean;
+  preamble?: string[] | QueryUtilQuery[];
+  enableConsoleTracing?: boolean;
+  enableQueryLogging?: boolean;
+  disableRollbackAndCommit?: boolean;
 }
 
 type beginTransactionReturn = ({
   autoRollback,
   suppressErrorLogging,
   preamble,
-  enableTracing
+  enableConsoleTracing,
+  enableQueryLogging,
+  disableRollbackAndCommit
 }: beginTransactionArgs) => Promise<QueryUtilTransaction>;
 
 export function beginTransaction(
-  dbConnection: dbConnection
+  dbConnection: QueryUtilsDbConnection
 ): beginTransactionReturn {
   return async function({
     autoRollback = false,
     suppressErrorLogging = false,
     preamble = [],
-    enableTracing = false
+    enableConsoleTracing = false,
+    enableQueryLogging = false,
+    disableRollbackAndCommit = false
   }: beginTransactionArgs): Promise<QueryUtilTransaction> {
     let _id = uuidv4();
-    let isTestMode = false;
     let isTransactionInProgress = false;
     let client: PoolClient;
     let wasCommitCalled = false;
     let wasRollbackCalled = false;
     let transactionState: TransactionStateTypes = "NOT_STARTED";
     let queryExecutionCount = 0;
-    let debugQueryCollection: QueryUtilQuery[] = [];
+    let queryLog: string[] = [];
 
     try {
       client = await dbConnection._pool.connect();
       isTransactionInProgress = true;
       transactionState = "STARTED";
 
-      if (enableTracing) {
+      if (enableConsoleTracing) {
         console.log(TRACE_PREFIX, "client connected");
       }
 
       try {
-        await client.query({ text: `begin;` });
+        const q = { text: `begin;` };
+        await client.query(q);
+        if (enableQueryLogging) {
+          queryLog.push(q.text);
+        }
 
-        if (enableTracing) {
+        if (enableConsoleTracing) {
           console.log(TRACE_PREFIX, "transaction begun");
         }
         if (preamble.length) {
-          if (enableTracing) {
+          if (enableConsoleTracing) {
             console.log(TRACE_PREFIX, "running preamble");
           }
           for (const statement of preamble) {
-            await client.query({ text: statement });
+            if (isQuery(statement)) {
+              await client.query({
+                text: statement.sql,
+                values: statement.params.map(p => p.value)
+              });
+              /* istanbul ignore else */
+              if (enableQueryLogging) {
+                queryLog.push(statement.debug());
+              }
+            } else {
+              await client.query({ text: statement });
+              /* istanbul ignore else */
+              if (enableQueryLogging) {
+                queryLog.push(statement);
+              }
+            }
           }
         }
       } catch (err) {
         logDbException(err, suppressErrorLogging);
-        await client.query({ text: `rollback;` });
-        if (enableTracing) {
+        const q = { text: `rollback;` };
+        await client.query(q);
+        if (enableQueryLogging) {
+          queryLog.push(q.text);
+        }
+        if (enableConsoleTracing) {
           console.log(TRACE_PREFIX, "rolling back because of exception");
         }
+        isTransactionInProgress = false;
         throw err;
       } finally {
         await client.release();
-        if (enableTracing) {
+        if (enableConsoleTracing) {
           console.log(TRACE_PREFIX, "client released");
         }
-        isTransactionInProgress = false;
       }
     } catch (err) {
       logDbException(err, suppressErrorLogging);
+      isTransactionInProgress = false;
       throw err;
     } finally {
-      isTransactionInProgress = false;
     }
 
     function trace(...output: any[]) {
-      if (enableTracing) {
+      if (enableConsoleTracing) {
         console.log(TRACE_PREFIX, ...output);
       }
     }
@@ -535,15 +573,15 @@ export function beginTransaction(
         return suppressErrorLogging;
       },
       get enableTracing() {
-        return enableTracing;
+        return enableConsoleTracing;
       },
       async executeQuery(query: QueryUtilQuery) {
         ensureTransactionInProgress(isTransactionInProgress);
 
         let rows: QueryResult;
         queryExecutionCount += 1;
-        if (isTestMode) {
-          debugQueryCollection.push(query.dump());
+        if (enableQueryLogging) {
+          queryLog.push(query.dump());
         }
         try {
           rows = await client.query({
@@ -553,23 +591,28 @@ export function beginTransaction(
           trace("query executed");
         } catch (err) {
           logDbException(err, suppressErrorLogging, query);
-          await client.query({ text: `rollback;` });
+          const q = { text: `rollback;` };
+          await client.query(q);
+          if (enableQueryLogging) {
+            queryLog.push(q.text);
+          }
           transactionState = "ROLLED_BACK";
           trace("rolling back because of exception");
+          isTransactionInProgress = false;
           throw err;
         } finally {
           await client.release();
           trace("client released");
-          isTransactionInProgress = false;
         }
         return rows;
       },
       async commit() {
         wasCommitCalled = true;
         ensureTransactionInProgress(isTransactionInProgress);
-        if (isTestMode) {
-          // if in test mode, just return, don't actually do anything
-          trace("TEST MODE! transaction.commit ignored");
+        if (disableRollbackAndCommit) {
+          trace(
+            "disableRollbackAndCommit === true! transaction.commit ignored"
+          );
           return;
         }
 
@@ -579,15 +622,27 @@ export function beginTransaction(
           if (autoRollback) {
             trace("transaction.commit -> autoRollback override");
 
-            await client.query({ text: `rollback;` });
+            const q = { text: `rollback;` };
+            await client.query(q);
+            if (enableQueryLogging) {
+              queryLog.push(q.text);
+            }
             transactionState = "ROLLED_BACK";
           } else {
-            await client.query({ text: `commit;` });
+            const q = { text: `commit;` };
+            await client.query(q);
+            if (enableQueryLogging) {
+              queryLog.push(q.text);
+            }
             transactionState = "COMMITTED";
           }
         } catch (err) {
           logDbException(err, suppressErrorLogging);
-          await client.query({ text: `rollback;` });
+          const q = { text: `rollback;` };
+          await client.query(q);
+          if (enableQueryLogging) {
+            queryLog.push(q.text);
+          }
           transactionState = "ROLLED_BACK";
           trace("rolling back because of exception");
           throw err;
@@ -600,17 +655,26 @@ export function beginTransaction(
       async rollback(ignoreIfTransactionInProgress = false) {
         wasRollbackCalled = true;
         ensureTransactionInProgress(isTransactionInProgress);
-        if (isTestMode) {
-          //if in test mode, just return, don't actually do anything
-          trace("TEST MODE! transaction.rollback ignored");
+        if (disableRollbackAndCommit) {
+          trace(
+            "disableRollbackAndCommit === true! transaction.rollback ignored"
+          );
           return;
         }
         trace("transaction.rollback");
         try {
-          await client.query({ text: `rollback;` });
+          const q = { text: `rollback;` };
+          await client.query(q);
+          if (enableQueryLogging) {
+            queryLog.push(q.text);
+          }
         } catch (err) {
           logDbException(err, suppressErrorLogging);
-          await client.query({ text: `rollback;` });
+          const q = { text: `rollback;` };
+          await client.query(q);
+          if (enableQueryLogging) {
+            queryLog.push(q.text);
+          }
           transactionState = "ROLLED_BACK";
           trace("rolling back because of exception");
           isTransactionInProgress = false;
@@ -640,47 +704,24 @@ export function beginTransaction(
         get queryExecutionCount() {
           return queryExecutionCount;
         },
-        set isTestMode(val) {
-          /*
-            TODO: maybe theres some way I can provide a hook for the user to provide a function called detectRunningUnderUnitTest that we can use here?
-
-          if (!isRunningUnderMocha()) {
-            throw new Error(
-              "Cannot set isTestMode on transactions outside of unit testing"
-            );
-          }
-
-          */
-          isTestMode = val;
+        set enableQueryLogging(val: boolean) {
+          enableQueryLogging = val;
         },
-        get isTestMode() {
-          /*
-            TODO: maybe theres some way I can provide a hook for the user to provide a function called detectRunningUnderUnitTest that we can use here?
-
-          if (!isRunningUnderMocha()) {
-            throw new Error(
-              "Cannot get isTestMode on transactions outside of unit testing"
-            );
-          }
-          */
-
-          return isTestMode;
+        get enableQueryLogging() {
+          return enableQueryLogging;
         },
-        get debugQueryCollection() {
-          /*
-            TODO: maybe theres some way I can provide a hook for the user to provide a function called detectRunningUnderUnitTest that we can use here?
-
-          if (!isRunningUnderMocha()) {
-            throw new Error(
-              "Cannot get debugQueryCollection on transactions outside of unit testing"
-            );
-          }
-
-          */
-          return debugQueryCollection;
+        set disableRollbackAndCommit(val: boolean) {
+          disableRollbackAndCommit = val;
+        },
+        get disableRollbackAndCommit() {
+          return disableRollbackAndCommit;
+        },
+        get queryLog() {
+          return queryLog;
         },
         dumpQueries() {
-          for (const query of debugQueryCollection) {
+          //todo: consider a name change on this
+          for (const query of queryLog) {
             console.log(query);
           }
         }

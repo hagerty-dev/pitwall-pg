@@ -1,17 +1,17 @@
-import { QueryResult, Pool } from "pg";
-interface dbConnection {
-    _pool: Pool;
+import { QueryResult } from "pg";
+export interface QueryUtilsDbConnection {
+    _pool: any;
 }
 interface QueryUtilType {
     __type: "__PARAM__" | "__QUERY__" | "__TRANSACTION__";
 }
-interface QueryUtilParam extends QueryUtilType {
+export interface QueryUtilParam extends QueryUtilType {
     __type: "__PARAM__";
     name: string;
     value: any;
     type: string;
 }
-interface QueryUtilQuery extends QueryUtilType {
+export interface QueryUtilQuery extends QueryUtilType {
     __type: "__QUERY__";
     namedParametersSQL: string;
     params: QueryUtilParam[];
@@ -19,21 +19,28 @@ interface QueryUtilQuery extends QueryUtilType {
     dump: Function;
     debug: Function;
 }
+export declare class QueryUtilsError extends Error {
+    private readonly _type;
+    constructor(message: string, type: string);
+    get type(): string;
+}
+export declare function isParam(possibleParam: any): possibleParam is QueryUtilParam;
+export declare function isQuery(possibleQuery: any): possibleQuery is QueryUtilQuery;
 export declare function isValidTransaction(possibleTransaction: any): possibleTransaction is QueryUtilTransaction;
 export declare function query(template: TemplateStringsArray, ...values: number[] | string[] | QueryUtilParam[] | QueryUtilQuery[] | unknown[]): QueryUtilQuery;
-export declare function param(name: string, value?: any, type?: string): QueryUtilParam | QueryUtilParam[];
-export declare function comment(_string: string): string;
+export declare function param(name: string, value: any, type?: string): QueryUtilParam | QueryUtilParam[];
+export declare function comment(_input: TemplateStringsArray, ..._values: any): string;
 export declare function cond(condition: boolean): (template: TemplateStringsArray, ...values: any) => QueryUtilQuery | undefined;
 export declare function condFn(conditionFn: (_: any) => boolean): (conditionFnInput: any) => (template: TemplateStringsArray, ...values: any) => QueryUtilQuery | undefined;
 export declare function canonicalize(sqlInput: string): string;
 export interface QueryExecutorOptions {
-    autoRollback: boolean;
-    suppressErrorLogging: boolean;
-    preamble: string[];
+    autoRollback?: boolean;
+    suppressErrorLogging?: boolean;
+    preamble?: string[] | QueryUtilQuery[];
 }
-export declare type QueryExecutor = (query: QueryUtilQuery, Options: QueryExecutorOptions) => Promise<QueryResult>;
-export declare function makeExecutor(db: dbConnection): QueryExecutor;
-declare type TransactionStateTypes = "NOT_STARTED" | "STARTED" | "ROLLED_BACK" | "COMMITTED";
+export declare type QueryExecutor = (query: QueryUtilQuery, Options?: QueryExecutorOptions) => Promise<QueryResult>;
+export declare function makeExecutor(db: QueryUtilsDbConnection): QueryExecutor;
+declare type TransactionStateTypes = "NOT_STARTED" | "STARTED" | "ROLLED_BACK" | "COMMITTED" | "FAILED_TO_ROLLBACK";
 interface QueryUtilTransaction {
     __type: "__TRANSACTION__";
     executeQuery: Function;
@@ -49,18 +56,21 @@ interface QueryUtilTransaction {
         readonly wasCommitCalled: boolean;
         readonly wasRollbackCalled: boolean;
         readonly queryExecutionCount: number;
-        isTestMode: boolean;
-        readonly debugQueryCollection: QueryUtilQuery[];
+        enableQueryLogging: boolean;
+        disableRollbackAndCommit: boolean;
+        readonly queryLog: string[];
         dumpQueries: () => void;
     };
 }
 interface beginTransactionArgs {
-    autoRollback: boolean;
-    suppressErrorLogging: boolean;
-    preamble: string[];
-    enableTracing: boolean;
+    autoRollback?: boolean;
+    suppressErrorLogging?: boolean;
+    preamble?: string[] | QueryUtilQuery[];
+    enableConsoleTracing?: boolean;
+    enableQueryLogging?: boolean;
+    disableRollbackAndCommit?: boolean;
 }
-declare type beginTransactionReturn = ({ autoRollback, suppressErrorLogging, preamble, enableTracing }: beginTransactionArgs) => Promise<QueryUtilTransaction>;
-export declare function beginTransaction(dbConnection: dbConnection): beginTransactionReturn;
+declare type beginTransactionReturn = ({ autoRollback, suppressErrorLogging, preamble, enableConsoleTracing, enableQueryLogging, disableRollbackAndCommit }: beginTransactionArgs) => Promise<QueryUtilTransaction>;
+export declare function beginTransaction(dbConnection: QueryUtilsDbConnection): beginTransactionReturn;
 export declare function validateTransaction(possibleTransaction: any): void;
 export {};

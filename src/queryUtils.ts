@@ -103,13 +103,13 @@ function makeError(type: string, ...args: any[]) {
   return new QueryUtilsError(definition.message(type, ...args), type);
 }
 
-function isParam(possibleParam: any): possibleParam is QueryUtilParam {
+export function isParam(possibleParam: any): possibleParam is QueryUtilParam {
   return (
     typeof possibleParam === "object" && possibleParam.__type === PARAM_SYMBOL
   );
 }
 
-function isQuery(possibleQuery: any): possibleQuery is QueryUtilQuery {
+export function isQuery(possibleQuery: any): possibleQuery is QueryUtilQuery {
   return (
     typeof possibleQuery === "object" && possibleQuery.__type === QUERY_SYMBOL
   );

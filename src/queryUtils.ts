@@ -92,7 +92,7 @@ const ERROR_DEFINITIONS: { [key: string]: errorDefinition } = {
   }
 };
 
-function makeError(type: string, ...args: any[]) {
+function errorFactory(type: string, ...args: any[]) {
   let definition = ERROR_DEFINITIONS[type];
 
   /* istanbul ignore next */
@@ -151,7 +151,7 @@ export function query(
   };
 
   if (template === undefined || template.length < 1) {
-    throw makeError("INVALID_QUERY_TEMPLATE");
+    throw errorFactory("INVALID_QUERY_TEMPLATE");
   }
 
   const namedParametersSQL = template
@@ -176,7 +176,7 @@ export function query(
 
           if (isQuery(firstValue)) {
             if (!value.every(isQuery)) {
-              throw makeError(`INCONSISTENT_ARRAY_TYPES`);
+              throw errorFactory(`INCONSISTENT_ARRAY_TYPES`);
             }
 
             let result = "";
@@ -187,7 +187,7 @@ export function query(
             return accumulatedSQL + result + part;
           } else if (isParam(firstValue)) {
             if (!value.every(isParam)) {
-              throw makeError(`INCONSISTENT_ARRAY_TYPES`);
+              throw errorFactory(`INCONSISTENT_ARRAY_TYPES`);
             }
             value.forEach(addParam);
             return (
@@ -196,10 +196,10 @@ export function query(
               part
             );
           } else if (firstValue === undefined) {
-            throw makeError(`ARRAY_OF_UNDEFINED`);
+            throw errorFactory(`ARRAY_OF_UNDEFINED`);
           } else {
             // the value was an array, but we don't know how to handle an array of these values
-            throw makeError("UNHANDLED_ARRAY_TYPE", {
+            throw errorFactory("UNHANDLED_ARRAY_TYPE", {
               valueType: typeof firstValue
             });
           }
@@ -208,7 +208,7 @@ export function query(
           return accumulatedSQL + part;
         }
       } else {
-        throw makeError("UNHANDLED_CASE", { value });
+        throw errorFactory("UNHANDLED_CASE", { value });
       }
 
       /* istanbul ignore next */
@@ -343,7 +343,7 @@ export type QueryExecutor = (
   Options?: QueryExecutorOptions
 ) => Promise<QueryResult>;
 
-export function makeExecutor(db: QueryUtilsDbConnection): QueryExecutor {
+export function executeQueryFactory(db: QueryUtilsDbConnection): QueryExecutor {
   return async function(
     query: QueryUtilQuery,
     options: QueryExecutorOptions = {
@@ -359,7 +359,7 @@ export function makeExecutor(db: QueryUtilsDbConnection): QueryExecutor {
         "\tQueryUtils query execution error: Empty SQL. This likely means something went wrong when building the query. "
       );
       console.log(query.debug());
-      throw makeError("EMPTY_SQL");
+      throw errorFactory("EMPTY_SQL");
     }
 
     let rows: QueryResult;
@@ -421,7 +421,7 @@ function logDbException(
 
 function ensureTransactionInProgress(isTransactionInProgress: boolean) {
   if (!isTransactionInProgress) {
-    throw makeError("NO_TRANSACTION_IN_PROGRESS");
+    throw errorFactory("NO_TRANSACTION_IN_PROGRESS");
   }
 }
 
@@ -454,7 +454,7 @@ interface QueryUtilTransaction {
   };
 }
 
-interface beginTransactionArgs {
+interface transactionFactoryArgs {
   autoRollback?: boolean;
   suppressErrorLogging?: boolean;
   preamble?: string[] | QueryUtilQuery[];
@@ -463,18 +463,18 @@ interface beginTransactionArgs {
   disableRollbackAndCommit?: boolean;
 }
 
-type beginTransactionReturn = ({
+type transactionFactoryReturn = ({
   autoRollback,
   suppressErrorLogging,
   preamble,
   enableConsoleTracing,
   enableQueryLogging,
   disableRollbackAndCommit
-}: beginTransactionArgs) => Promise<QueryUtilTransaction>;
+}: transactionFactoryArgs) => Promise<QueryUtilTransaction>;
 
-export function beginTransaction(
+export function transactionFactory(
   dbConnection: QueryUtilsDbConnection
-): beginTransactionReturn {
+): transactionFactoryReturn {
   return async function({
     autoRollback = false,
     suppressErrorLogging = false,
@@ -482,7 +482,7 @@ export function beginTransaction(
     enableConsoleTracing = false,
     enableQueryLogging = false,
     disableRollbackAndCommit = false
-  }: beginTransactionArgs): Promise<QueryUtilTransaction> {
+  }: transactionFactoryArgs): Promise<QueryUtilTransaction> {
     let _id = uuidv4();
     let isTransactionInProgress = false;
     let client: PoolClient;
@@ -735,6 +735,6 @@ export function beginTransaction(
 
 export function validateTransaction(possibleTransaction: any) {
   if (!isValidTransaction(possibleTransaction)) {
-    throw makeError("INVALID_TRANSACTION");
+    throw errorFactory("INVALID_TRANSACTION");
   }
 }

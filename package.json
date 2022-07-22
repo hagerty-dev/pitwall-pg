@@ -10,8 +10,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p tsconfig-cjs.json",
     "prepublishOnly": "npm run build",
-    "test": "NODE_ENV=test nyc --cache mocha ./tests/* --exit && nyc check-coverage",
-    "test-watch": "NODE_ENV=test mocha ./tests/* --exit --watch",
+    "test": "npm run test-ts && npm run test-lib",
+    "test-ts": "NODE_ENV=test nyc --cache mocha ./tests/* --exit && nyc check-coverage",
+    "test-ts-watch": "NODE_ENV=test mocha ./tests/* --exit --watch",
     "test-lib": "npm run build && npm run test-cjs && npm run test-esm",
     "test-cjs": "NODE_ENV=test mocha ./tests/lib-cjs/* --extensions 'cjs' --exit",
     "test-esm": "NODE_ENV=test mocha ./tests/lib-esm/* --extensions 'mjs' --exit",

@@ -4,8 +4,8 @@ import { query,
   cond,
   condFn,
   canonicalize,
-  makeExecutor,
-  beginTransaction,
+  executeQueryFactory,
+  transactionFactory,
   validateTransaction,
   isValidTransaction, } from './queryUtils.js'
 
@@ -16,8 +16,8 @@ export {
   cond,
   condFn,
   canonicalize,
-  makeExecutor,
-  beginTransaction,
+  executeQueryFactory,
+  transactionFactory,
   validateTransaction,
   isValidTransaction,
 }

@@ -39,7 +39,7 @@ export interface QueryExecutorOptions {
     preamble?: string[] | QueryUtilQuery[];
 }
 export declare type QueryExecutor = (query: QueryUtilQuery, Options?: QueryExecutorOptions) => Promise<QueryResult>;
-export declare function makeExecutor(db: QueryUtilsDbConnection): QueryExecutor;
+export declare function executeQueryFactory(db: QueryUtilsDbConnection): QueryExecutor;
 declare type TransactionStateTypes = "NOT_STARTED" | "STARTED" | "ROLLED_BACK" | "COMMITTED" | "FAILED_TO_ROLLBACK";
 interface QueryUtilTransaction {
     __type: "__TRANSACTION__";
@@ -62,7 +62,7 @@ interface QueryUtilTransaction {
         dumpQueries: () => void;
     };
 }
-interface beginTransactionArgs {
+interface transactionFactoryArgs {
     autoRollback?: boolean;
     suppressErrorLogging?: boolean;
     preamble?: string[] | QueryUtilQuery[];
@@ -70,7 +70,7 @@ interface beginTransactionArgs {
     enableQueryLogging?: boolean;
     disableRollbackAndCommit?: boolean;
 }
-declare type beginTransactionReturn = ({ autoRollback, suppressErrorLogging, preamble, enableConsoleTracing, enableQueryLogging, disableRollbackAndCommit }: beginTransactionArgs) => Promise<QueryUtilTransaction>;
-export declare function beginTransaction(dbConnection: QueryUtilsDbConnection): beginTransactionReturn;
+declare type transactionFactoryReturn = ({ autoRollback, suppressErrorLogging, preamble, enableConsoleTracing, enableQueryLogging, disableRollbackAndCommit }: transactionFactoryArgs) => Promise<QueryUtilTransaction>;
+export declare function transactionFactory(dbConnection: QueryUtilsDbConnection): transactionFactoryReturn;
 export declare function validateTransaction(possibleTransaction: any): void;
 export {};

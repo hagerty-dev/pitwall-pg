@@ -1,10 +1,10 @@
 import {
-  beginTransaction,
+  transactionFactory,
   canonicalize,
   comment,
   cond,
   condFn,
-  makeExecutor,
+  executeQueryFactory,
   param,
   query,
   QueryUtilsError,
@@ -388,7 +388,7 @@ describe("suite", async function () {
     });
   });
 
-  describe("makeExecutor", async function () {
+  describe("executeQueryFactory", async function () {
     let queryLog = [];
     let releaseWasCalled = false;
     const dbStub = {
@@ -413,13 +413,13 @@ describe("suite", async function () {
     });
 
     it("should allow you to create an executor given a dbconnection", async function () {
-      const executeQuery = makeExecutor(dbStub);
+      const executeQuery = executeQueryFactory(dbStub);
 
       expect(executeQuery).to.be.a("function");
     });
 
     it("should execute queries given to it", async function () {
-      const executeQuery = makeExecutor(dbStub);
+      const executeQuery = executeQueryFactory(dbStub);
 
       await executeQuery(query`select 1;`);
 
@@ -428,7 +428,7 @@ describe("suite", async function () {
     });
 
     it("should throw an error if given an empty query", async function () {
-      const executeQuery = makeExecutor(dbStub);
+      const executeQuery = executeQueryFactory(dbStub);
 
       await expectErrorType("EMPTY_SQL", async function () {
         const q = query``;
@@ -439,7 +439,7 @@ describe("suite", async function () {
     });
 
     it("should allow you to provide a preamble", async function () {
-      const executeQuery = makeExecutor(dbStub);
+      const executeQuery = executeQueryFactory(dbStub);
 
       await executeQuery(query`select ${param("x", 1)};`, {
         preamble: [`SET LOCAL foo = 'bar';`, `SET LOCAL bar = 'foo';`],
@@ -457,7 +457,7 @@ describe("suite", async function () {
     });
 
     it("should allow you to provide query``s for the preamble", async function () {
-      const executeQuery = makeExecutor(dbStub);
+      const executeQuery = executeQueryFactory(dbStub);
 
       await executeQuery(query`select 1;`, {
         preamble: [
@@ -478,7 +478,7 @@ describe("suite", async function () {
     });
 
     it("should allow you to request autoRollback", async function () {
-      const executeQuery = makeExecutor(dbStub);
+      const executeQuery = executeQueryFactory(dbStub);
 
       await executeQuery(query`select 1;`, {
         autoRollback: true,
@@ -515,7 +515,7 @@ describe("suite", async function () {
         },
       };
 
-      const executeQuery = makeExecutor(dbStub);
+      const executeQuery = executeQueryFactory(dbStub);
 
       let expectedError1 = undefined;
       try {
@@ -568,7 +568,7 @@ describe("suite", async function () {
     };
 
     it("should allow you to create a transaction", async function () {
-      const transactionHelper = beginTransaction(dbStub);
+      const transactionHelper = transactionFactory(dbStub);
       expect(transactionHelper).to.be.a("function");
       const transaction = await transactionHelper({});
 
@@ -578,7 +578,7 @@ describe("suite", async function () {
     });
 
     it("should allow queries then commit", async function () {
-      const transactionHelper = beginTransaction(dbStub);
+      const transactionHelper = transactionFactory(dbStub);
       expect(transactionHelper).to.be.a("function");
       const transaction = await transactionHelper({
         enableQueryLogging: true,
@@ -629,7 +629,7 @@ describe("suite", async function () {
     });
 
     it("should allow queries then rollback", async function () {
-      const transactionHelper = beginTransaction(dbStub);
+      const transactionHelper = transactionFactory(dbStub);
       expect(transactionHelper).to.be.a("function");
       const transaction = await transactionHelper({
         autoRollback: false,
@@ -651,7 +651,7 @@ describe("suite", async function () {
     });
 
     it("should allow you to validate a transaction", async function () {
-      const transactionHelper = beginTransaction(dbStub);
+      const transactionHelper = transactionFactory(dbStub);
       expect(transactionHelper).to.be.a("function");
       const transaction = await transactionHelper({
         autoRollback: false,
@@ -669,7 +669,7 @@ describe("suite", async function () {
     });
 
     it("should allow you to provide a preamble", async function () {
-      const transactionHelper = beginTransaction(dbStub);
+      const transactionHelper = transactionFactory(dbStub);
       expect(transactionHelper).to.be.a("function");
       const transaction = await transactionHelper({
         autoRollback: false,
@@ -690,7 +690,7 @@ describe("suite", async function () {
     });
 
     it("should allow you to provide a query object as a preamble", async function () {
-      const transactionHelper = beginTransaction(dbStub);
+      const transactionHelper = transactionFactory(dbStub);
       expect(transactionHelper).to.be.a("function");
       const transaction = await transactionHelper({
         autoRollback: false,
@@ -719,7 +719,7 @@ describe("suite", async function () {
         },
       };
 
-      const transactionHelper = beginTransaction(dbStub);
+      const transactionHelper = transactionFactory(dbStub);
       expect(transactionHelper).to.be.a("function");
 
       let expectedError = undefined;
@@ -755,7 +755,7 @@ describe("suite", async function () {
         },
       };
 
-      const transactionHelper = beginTransaction(dbStub);
+      const transactionHelper = transactionFactory(dbStub);
       expect(transactionHelper).to.be.a("function");
 
       let expectedError = undefined;
@@ -775,7 +775,7 @@ describe("suite", async function () {
     });
 
     it("should not enable query logging by default", async function () {
-      const transactionHelper = beginTransaction(dbStub);
+      const transactionHelper = transactionFactory(dbStub);
       expect(transactionHelper).to.be.a("function");
       const transaction = await transactionHelper({});
 
@@ -789,7 +789,7 @@ describe("suite", async function () {
     });
 
     it("should allow you to autoRollback instead of commit", async function () {
-      const transactionHelper = beginTransaction(dbStub);
+      const transactionHelper = transactionFactory(dbStub);
       expect(transactionHelper).to.be.a("function");
       const transaction = await transactionHelper({
         autoRollback: true,
@@ -809,7 +809,7 @@ describe("suite", async function () {
     });
 
     it("should allow you to disable rollback and commit for use in unit testing", async function () {
-      const transactionHelper = beginTransaction(dbStub);
+      const transactionHelper = transactionFactory(dbStub);
       expect(transactionHelper).to.be.a("function");
       const transaction = await transactionHelper({ enableQueryLogging: true });
 
@@ -858,7 +858,7 @@ describe("suite", async function () {
         },
       };
 
-      const transactionHelper = beginTransaction(dbStub);
+      const transactionHelper = transactionFactory(dbStub);
       expect(transactionHelper).to.be.a("function");
       const transaction = await transactionHelper({});
 
@@ -907,7 +907,7 @@ describe("suite", async function () {
         },
       };
 
-      const transactionHelper = beginTransaction(dbStub);
+      const transactionHelper = transactionFactory(dbStub);
       expect(transactionHelper).to.be.a("function");
       const transaction = await transactionHelper({});
 
@@ -962,7 +962,7 @@ describe("suite", async function () {
         },
       };
 
-      const transactionHelper = beginTransaction(dbStub);
+      const transactionHelper = transactionFactory(dbStub);
       expect(transactionHelper).to.be.a("function");
       const transaction = await transactionHelper({
         enableQueryLogging: true,

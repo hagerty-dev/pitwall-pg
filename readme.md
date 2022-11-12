@@ -1,4 +1,4 @@
-#description & motivation
+# description & motivation
 
 The goal of this package is to provide:
 - a way to write safe SQL statements, including parameters

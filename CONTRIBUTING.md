@@ -11,12 +11,22 @@ All types of contributions are encouraged and valued. See the [Table of Contents
 
 ## Table of Contents
 
+- [Contributors](#contributors)
+- [Contacts](#contacts)
 - [I Have a Question](#i-have-a-question)
 - [I Want To Contribute](#i-want-to-contribute)
 - [Reporting Bugs](#reporting-bugs)
 - [Suggesting Enhancements](#suggesting-enhancements)
 - [Your First Code Contribution](#your-first-code-contribution)
 
+
+## Contributors
+- Ryan Guill, Git user: ryanguill
+- Brian Ghidinelli, Git user: ghidinelli, email: bghidinelli@HAGERTY.com
+
+## Contacts
+- Ryan Kovick, Git user: rkovick, email: rkovick@hagerty.com
+- opensource@hagerty.com
 
 ## I Have a Question
 
@@ -26,7 +36,8 @@ Before you ask a question, it is best to search for existing [Issues](/issues) t
 
 If you then still feel the need to ask a question and need clarification, we recommend the following:
 
-- Open an [Issue](/issues/new).
+- For challenges using this package: open an [Issue](/issues/new).
+- For questions that aren't answered in documentation, contact one of the [Contributors](#contributors) or [Contacts](#contacts).
 - Provide as much context as you can about what you're running into.
 - Provide project and platform versions (nodejs, npm, etc), depending on what seems relevant.
 
@@ -57,7 +68,7 @@ A good bug report shouldn't leave others needing to chase you up for more inform
 
 #### How Do I Submit a Good Bug Report?
 
-> You must never report security related issues, vulnerabilities or bugs including sensitive information to the issue tracker, or elsewhere in public. Instead sensitive bugs must be sent by email to <>.
+> You must never report security related issues, vulnerabilities or bugs including sensitive information to the issue tracker, or elsewhere in public. Instead, sensitive bugs must be sent by email to one of the Hagerty [Contacts](#contacts).
 
 
 We use GitHub issues to track bugs and errors. If you run into an issue with the project:

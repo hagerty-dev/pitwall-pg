@@ -7,7 +7,7 @@ import { query,
   executeQueryFactory,
   transactionFactory,
   validateTransaction,
-  isValidTransaction, } from './queryUtils.js'
+  isValidTransaction, } from './pitwall-pg'
 
 export {
   query,

@@ -1,16 +1,17 @@
-const {
-  param,
+import {
+  transactionFactory,
   canonicalize,
+  comment,
   cond,
   condFn,
-  comment,
   executeQueryFactory,
-  transactionFactory,
-  validateTransaction,
+  param,
   query,
-  QueryUtilsError
-} = require("../../lib/cjs/queryUtils.js");
-const { expect } = require("chai");
+  PitwallError,
+  validateTransaction,
+} from "../../lib/cjs/pitwall-pg.js";
+
+import { expect } from "chai";
 
 /* utility function */
 async function expectErrorType(expectedType, fn) {
@@ -22,11 +23,11 @@ async function expectErrorType(expectedType, fn) {
       expectedErr = err;
     }
 
-    if (!(expectedErr instanceof QueryUtilsError)) {
+    if (!(expectedErr instanceof PitwallError)) {
       const e = new Error();
       console.log(e.stack);
       expect(expectedErr).to.be.instanceOf(
-        QueryUtilsError,
+        PitwallError,
         "this means the expected error was not thrown"
       );
     } else {

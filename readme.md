@@ -1,4 +1,8 @@
-#description & motivation
+# pitwall-pg
+
+In motorsports, the pitwall is where the team engineers, strategists and captains communicate, observe, and coordinate. This library allows you to create prepared statements, coordinate transactions, and observe the communications with your database.
+
+# description & motivation
 
 The goal of this package is to provide:
 - a way to write safe SQL statements, including parameters
@@ -23,7 +27,7 @@ This package supports both `cjs` and `esm` modules. All examples and documentati
 To begin with, you will need to create a transaction factory by providing a `dbConnection`:
 
 ```
-import { transactionFactory } from 'rg-query-utils-js';
+import { transactionFactory } from 'pitwall-pg';
 import { Pool } from 'pg';
 
 const pool = new Pool()

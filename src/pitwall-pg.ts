@@ -10,37 +10,37 @@ import { QueryResult, Pool, PoolClient } from "pg";
 import { v4 as uuidv4 } from "uuid";
 import dedent from "./dedent";
 
-const LIBRARY_NAME = "QueryUtils";
+const LIBRARY_NAME = "pitwall-pg";
 const TRACE_PREFIX = `${LIBRARY_NAME} Trace:`;
 const PARAM_SYMBOL = "__PARAM__";
 const QUERY_SYMBOL = "__QUERY__";
 const TRANSACTION_SYMBOL = "__TRANSACTION__";
 
-export interface QueryUtilsDbConnection {
+export interface PitwallDbConnection {
   _pool: any;
 }
 
-interface QueryUtilType {
+interface PitwallType {
   __type: "__PARAM__" | "__QUERY__" | "__TRANSACTION__";
 }
 
-export interface QueryUtilParam extends QueryUtilType {
+export interface PitwallParam extends PitwallType {
   __type: "__PARAM__";
   name: string;
   value: any;
   type: string;
 }
 
-export interface QueryUtilQuery extends QueryUtilType {
+export interface PitwallQuery extends PitwallType {
   __type: "__QUERY__";
   namedParametersSQL: string;
-  params: QueryUtilParam[];
+  params: PitwallParam[];
   sql: string;
   dump: Function;
   debug: Function;
 }
 
-export class QueryUtilsError extends Error {
+export class PitwallError extends Error {
   private readonly _type: string = "";
   constructor(message: string, type: string) {
     super(message);
@@ -100,16 +100,16 @@ function errorFactory(type: string, ...args: any[]) {
     definition = ERROR_DEFINITIONS["INTERNAL_ERROR_INVALID_ERROR_TYPE"];
   }
 
-  return new QueryUtilsError(definition.message(type, ...args), type);
+  return new PitwallError(definition.message(type, ...args), type);
 }
 
-export function isParam(possibleParam: any): possibleParam is QueryUtilParam {
+export function isParam(possibleParam: any): possibleParam is PitwallParam {
   return (
     typeof possibleParam === "object" && possibleParam.__type === PARAM_SYMBOL
   );
 }
 
-export function isQuery(possibleQuery: any): possibleQuery is QueryUtilQuery {
+export function isQuery(possibleQuery: any): possibleQuery is PitwallQuery {
   return (
     typeof possibleQuery === "object" && possibleQuery.__type === QUERY_SYMBOL
   );
@@ -117,7 +117,7 @@ export function isQuery(possibleQuery: any): possibleQuery is QueryUtilQuery {
 
 export function isValidTransaction(
   possibleTransaction: any
-): possibleTransaction is QueryUtilTransaction {
+): possibleTransaction is PitwallTransaction {
   return (
     typeof possibleTransaction === "object" &&
     possibleTransaction.hasOwnProperty("__type") &&
@@ -137,14 +137,14 @@ export function query(
   ...values:
     | number[]
     | string[]
-    | QueryUtilParam[]
-    | QueryUtilQuery[]
+    | PitwallParam[]
+    | PitwallQuery[]
     | unknown[]
-): QueryUtilQuery {
-  let params: QueryUtilParam[] = [];
+): PitwallQuery {
+  let params: PitwallParam[] = [];
 
   // if multiple parameters are passed with different values, first one wins.
-  const addParam = (param: QueryUtilParam) => {
+  const addParam = (param: PitwallParam) => {
     if (!params.find(p => p.name === param.name)) {
       params.push(param);
     }
@@ -228,7 +228,7 @@ export function query(
     get sql(): string {
       return this.params.reduce(function(
         sql: string,
-        param: QueryUtilParam,
+        param: PitwallParam,
         paramIndex: number
       ) {
         sql = dedent(
@@ -243,7 +243,7 @@ export function query(
     dump(): string {
       let output = this.params.reduceRight(function(
         sql: string,
-        param: QueryUtilParam,
+        param: PitwallParam,
         index: number
       ) {
         if (typeof param.value === "number") {
@@ -270,7 +270,7 @@ export function param(
   name: string,
   value: any,
   type: string = ""
-): QueryUtilParam | QueryUtilParam[] {
+): PitwallParam | PitwallParam[] {
   if (Array.isArray(value)) {
     return value.map((item, index) => ({
       __type: PARAM_SYMBOL,
@@ -294,7 +294,7 @@ export function cond(
 ): (
   template: TemplateStringsArray,
   ...values: any
-) => QueryUtilQuery | undefined {
+) => PitwallQuery | undefined {
   return function(template: TemplateStringsArray, ...values: any) {
     if (condition) {
       return query(template, ...values);
@@ -335,17 +335,17 @@ export function canonicalize(sqlInput: string) {
 export interface QueryExecutorOptions {
   autoRollback?: boolean;
   suppressErrorLogging?: boolean;
-  preamble?: string[] | QueryUtilQuery[];
+  preamble?: string[] | PitwallQuery[];
 }
 
 export type QueryExecutor = (
-  query: QueryUtilQuery,
+  query: PitwallQuery,
   Options?: QueryExecutorOptions
 ) => Promise<QueryResult>;
 
-export function executeQueryFactory(db: QueryUtilsDbConnection): QueryExecutor {
+export function executeQueryFactory(db: PitwallDbConnection): QueryExecutor {
   return async function(
-    query: QueryUtilQuery,
+    query: PitwallQuery,
     options: QueryExecutorOptions = {
       autoRollback: false,
       suppressErrorLogging: false,
@@ -356,7 +356,7 @@ export function executeQueryFactory(db: QueryUtilsDbConnection): QueryExecutor {
 
     if (query.sql.length === 0) {
       console.error(
-        "\tQueryUtils query execution error: Empty SQL. This likely means something went wrong when building the query. "
+        "\tPitwall query execution error: Empty SQL. This likely means something went wrong when building the query. "
       );
       console.log(query.debug());
       throw errorFactory("EMPTY_SQL");
@@ -403,7 +403,7 @@ export function executeQueryFactory(db: QueryUtilsDbConnection): QueryExecutor {
 function logDbException(
   error: unknown,
   suppressErrorLogging: boolean = false,
-  query?: QueryUtilQuery
+  query?: PitwallQuery
 ) {
   if (!suppressErrorLogging) {
     /* istanbul ignore else */
@@ -432,7 +432,7 @@ type TransactionStateTypes =
   | "COMMITTED"
   | "FAILED_TO_ROLLBACK";
 
-interface QueryUtilTransaction {
+interface PitwallTransaction {
   __type: "__TRANSACTION__";
   executeQuery: Function;
   commit: Function;
@@ -457,7 +457,7 @@ interface QueryUtilTransaction {
 interface transactionFactoryArgs {
   autoRollback?: boolean;
   suppressErrorLogging?: boolean;
-  preamble?: string[] | QueryUtilQuery[];
+  preamble?: string[] | PitwallQuery[];
   enableConsoleTracing?: boolean;
   enableQueryLogging?: boolean;
   disableRollbackAndCommit?: boolean;
@@ -470,10 +470,10 @@ type transactionFactoryReturn = ({
   enableConsoleTracing,
   enableQueryLogging,
   disableRollbackAndCommit
-}: transactionFactoryArgs) => Promise<QueryUtilTransaction>;
+}: transactionFactoryArgs) => Promise<PitwallTransaction>;
 
 export function transactionFactory(
-  dbConnection: QueryUtilsDbConnection
+  dbConnection: PitwallDbConnection
 ): transactionFactoryReturn {
   return async function({
     autoRollback = false,
@@ -482,7 +482,7 @@ export function transactionFactory(
     enableConsoleTracing = false,
     enableQueryLogging = false,
     disableRollbackAndCommit = false
-  }: transactionFactoryArgs): Promise<QueryUtilTransaction> {
+  }: transactionFactoryArgs): Promise<PitwallTransaction> {
     let _id = uuidv4();
     let isTransactionInProgress = false;
     let client: PoolClient;
@@ -578,7 +578,7 @@ export function transactionFactory(
       get enableTracing() {
         return enableConsoleTracing;
       },
-      async executeQuery(query: QueryUtilQuery) {
+      async executeQuery(query: PitwallQuery) {
         ensureTransactionInProgress(isTransactionInProgress);
 
         let rows: QueryResult;

@@ -21,11 +21,11 @@ All types of contributions are encouraged and valued. See the [Table of Contents
 
 
 ## Contributors
-- Ryan Guill, Git user: ryanguill
-- Brian Ghidinelli, Git user: ghidinelli, email: bghidinelli@HAGERTY.com
+- Ryan Guill, Git user: [ryanguill](https://github.com/ryanguill)
+- Brian Ghidinelli, Git user: [ghidinelli](https://github.com/ghidinelli), email: bghidinelli@HAGERTY.com
 
 ## Contacts
-- Ryan Kovick, Git user: rkovick, email: rkovick@hagerty.com
+- Ryan Kovick, Git user: [rkovick](https://github.com/rkovick), email: rkovick@hagerty.com
 - opensource@hagerty.com
 
 ## I Have a Question

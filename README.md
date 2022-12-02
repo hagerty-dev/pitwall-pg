@@ -55,7 +55,7 @@ There are quite a few other options though beyond the standard use case for tran
 
 ```
 ... 
-const beginTransaction = transactionFactory(dbConnection);`
+const beginTransaction = transactionFactory(dbConnection);
 const txn = beginTransaction({
     autoRollback: false,
     suppressErrorLogging: false,

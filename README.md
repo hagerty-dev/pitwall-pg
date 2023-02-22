@@ -227,7 +227,7 @@ string template functions that allow you to conditionally include a section of a
 examples:
 
 ```
-const isColumnIncluded = condFn(column => columsn.includes(column));
+const isColumnIncluded = condFn(column => columns.includes(column));
 
 const q = query`
     SELECT 1

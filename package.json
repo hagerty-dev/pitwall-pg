@@ -1,5 +1,5 @@
 {
-  "name": "pitwall-pg",
+  "name": "@hagerty-dev/pitwall-pg",
   "version": "0.1.0",
   "main": "./lib/cjs/index.js",
   "module": "./lib/esm/index.js",
